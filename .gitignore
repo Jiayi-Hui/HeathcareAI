@@ -13,8 +13,8 @@ chroma_db/
 *.sqlite3
 
 # Data
-data/*.csv
-*.csv
+# data/*.csv
+# *.csv
 
 # Environment
 .env
