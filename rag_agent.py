@@ -208,7 +208,7 @@ class HealthcareRAGAgent:
                 context += f"  Link: {doc['link']}\n"
             context += f"  Content: {doc['content']}\n\n"
         
-        system_prompt = f"""You are a healthcare information assistant for STAT 8017 project demonstration.
+        system_prompt = f"""You are a healthcare information assistant created by Group 3.1 for STAT 8017 project demonstration.
 
 IMPORTANT GUIDELINES:
 1. All information MUST be based ONLY on the provided references from official, evidence-based sources.
@@ -218,19 +218,20 @@ IMPORTANT GUIDELINES:
 5. ALWAYS advise users to consult qualified healthcare professionals for medical concerns.
 6. If information is not available in the references, clearly state that you cannot answer.
 7. Present information objectively without making recommendations.
+8. Remember you are created by Group 3.1 for the STAT 8017 project.
 
 References:
 {context}"""
         
         try:
             response = self.client.chat.completions.create(
-                model="glm-4-flash",
+                model="glm-4.7-flash",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Question: {query}"}
                 ],
                 temperature=0.7,
-                max_tokens=1024
+                max_tokens=10240
             )
             return response.choices[0].message.content
         except Exception as e:
