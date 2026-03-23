@@ -7,11 +7,15 @@ from typing import List, Dict, Any
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from zhipuai import ZhipuAI
 import hashlib
 from tqdm import tqdm
 import chardet
+
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*torch.classes.*")
 
 class HealthcareRAGAgent:
     def __init__(self, persist_directory: str = "./chroma_db"):
@@ -56,7 +60,7 @@ class HealthcareRAGAgent:
         col_mapping = {}
         
         title_keywords = ['title', 'name', 'article', 'topic', 'subject', 'heading', 'page']
-        content_keywords = ['content', 'text', 'body', 'article', 'description', 'summary', 'wiki']
+        content_keywords = ['content', 'text', 'body', 'article', 'description', 'summary', 'wiki', 'extract']
         link_keywords = ['link', 'url', 'source', 'href', 'website', 'web']
         
         used_columns = set()
@@ -186,7 +190,8 @@ class HealthcareRAGAgent:
                 "source": doc.metadata.get("source", "Unknown"),
                 "score": float(score)
             }
-            if "link" in doc.meta
+            # ✅ FIXED: Was "doc.meta" - should be "doc.metadata" with colon
+            if "link" in doc.metadata:
                 doc_info["link"] = doc.metadata["link"]
             retrieved.append(doc_info)
         return retrieved
