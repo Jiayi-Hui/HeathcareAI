@@ -3,6 +3,7 @@
 
 import streamlit as st
 from rag_agent import HealthcareRAGAgent
+from evaluator import HealthcareEvaluator
 import os
 import json
 from dotenv import load_dotenv
@@ -30,6 +31,13 @@ if "agent" not in st.session_state:
         st.session_state.agent = load_agent()
         stats = st.session_state.agent.get_stats()
         st.success(f"✅ Agent loaded! Database contains {stats['total_chunks']:,} references")
+
+@st.cache_resource
+def load_evaluator():
+    return HealthcareEvaluator()
+
+if "evaluator" not in st.session_state:
+    st.session_state.evaluator = load_evaluator()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
