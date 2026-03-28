@@ -20,6 +20,7 @@ except LookupError:
 class HealthcareEvaluator:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # self.device = "cpu"
         # Initialize the official UniEval dialogue evaluator
         try:
             self.unieval_dialogue = get_evaluator('dialogue', device=self.device)
@@ -32,7 +33,7 @@ class HealthcareEvaluator:
             self.bert_scorer = BERTScorer(model_type="roberta-large",
                                           rescale_with_baseline=True,
                                           lang="en",
-                                          device="cpu"
+                                          device=self.device
                                           )    
         except Exception as e:
             print(f"Warning: Could not initialize BERTScorer: {e}")
