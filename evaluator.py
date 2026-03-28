@@ -4,6 +4,8 @@ import numpy as np
 from typing import List, Dict
 from bert_score import score as bert_score_func
 import nltk
+from metric.evaluator import get_evaluator
+from utils import convert_to_json
 
 nltk.download('punkt_tab', quiet=True)
 
@@ -15,7 +17,13 @@ except LookupError:
 class HealthcareEvaluator:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
+        # Initialize the official UniEval dialogue evaluator
+        try:
+            self.unieval_dialogue = get_evaluator('dialogue', device=self.device)
+        except Exception as e:
+            print(f"Warning: Could not initialize UniEval: {e}")
+            self.unieval_dialogue = None
+            
     def get_bert_score(self, prediction: str, ground_truth: str) -> float:
         """Calculates semantic similarity using BERTScore."""
         if not ground_truth:
@@ -46,20 +54,35 @@ class HealthcareEvaluator:
                 
         return supported / len(sentences)
 
-    def get_unieval_metrics(self, prediction: str) -> Dict[str, float]:
+   def get_unieval_metrics(self, prediction: str, query: str, retrieved_docs: List[Dict]) -> Dict[str, float]:
         """
-        UniEval-inspired metrics for text quality. 
-        Calculates Coherence and Fluency based on structural markers.
+        Official UniEval implementation for the 'dialogue' task.
+        Evaluates Naturalness, Coherence, Engagedness, and Groundedness.
         """
-        # Simple heuristic-based UniEval proxy
-        sentences = prediction.split('.')
-        word_count = len(prediction.split())
-        
-        coherence = 1.0 if len(sentences) > 1 else 0.5
-        fluency = min(1.0, word_count / 20) # Penalize extremely short, clipped answers
-        
-        return {
-            "coherence": coherence,
-            "fluency": fluency,
-            "consistency": 1.0 # Placeholder for logical check
-        }
+        if self.unieval_dialogue is None:
+            return {"error": "UniEval model not loaded"}
+
+        # 1. Prepare inputs
+        # src_list: The dialogue history/user prompt
+        # context_list: The retrieved knowledge the model should use
+        # output_list: The model's generated response
+        src_list = [query]
+        context_text = " ".join([doc.get('content', '') for doc in retrieved_docs])
+        context_list = [context_text]
+        output_list = [prediction]
+
+        # 2. Convert to UniEval JSON format
+        data = convert_to_json(
+            output_list=output_list, 
+            src_list=src_list, 
+            context_list=context_list
+        )
+
+        # 3. Evaluate
+        try:
+            eval_scores = self.unieval_dialogue.evaluate(data, print_result=False)
+            # The evaluator returns a list of dictionaries; we take the first result
+            return eval_scores[0]
+        except Exception as e:
+            print(f"UniEval Scoring Error: {e}")
+            return {}
