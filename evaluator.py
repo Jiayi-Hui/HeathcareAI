@@ -29,7 +29,11 @@ class HealthcareEvaluator:
 
         # Initialize BERTScorer
         try:
-            self.bert_scorer = BERTScorer(lang="en", device=self.device)
+            self.bert_scorer = BERTScorer(model_type="roberta-large",
+                                          rescale_with_baseline=True,
+                                          lang="en",
+                                          device="cpu"
+                                          )    
         except Exception as e:
             print(f"Warning: Could not initialize BERTScorer: {e}")
             self.bert_scorer = None
