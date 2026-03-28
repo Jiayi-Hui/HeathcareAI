@@ -5,6 +5,8 @@ from typing import List, Dict
 from bert_score import score as bert_score_func
 import nltk
 
+nltk.download('punkt_tab', quiet=True)
+
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
