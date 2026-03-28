@@ -26,18 +26,19 @@ def load_agent():
     persist_dir = os.environ.get("CHROMA_PERSIST_DIR", "./chroma_db")
     return HealthcareRAGAgent(persist_directory=persist_dir)
 
+@st.cache_resource
+def load_evaluator():
+    return HealthcareEvaluator()
+
 if "agent" not in st.session_state:
     with st.spinner("Loading Healthcare RAG Agent..."):
         st.session_state.agent = load_agent()
         stats = st.session_state.agent.get_stats()
         st.success(f"✅ Agent loaded! Database contains {stats['total_chunks']:,} references")
 
-@st.cache_resource
-def load_evaluator():
-    return HealthcareEvaluator()
-
 if "evaluator" not in st.session_state:
-    st.session_state.evaluator = load_evaluator()
+    with st.spinner("Initializing UniEval (T5-based Dialogue Task)..."):
+        st.session_state.evaluator = load_evaluator()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -72,14 +73,11 @@ with st.sidebar:
                     st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
-    
-    st.divider()
-    
+
     if st.button("🗑️ Clear Database", use_container_width=True, type="secondary"):
-        if stats['total_chunks'] > 0:
-            st.session_state.agent.clear_database()
-            st.success("✅ Database cleared!")
-            st.rerun()
+        st.session_state.agent.clear_database()
+        st.success("✅ Database cleared!")
+        st.rerun()
     
     st.divider()
     
@@ -113,12 +111,14 @@ if prompt := st.chat_input("Ask about healthcare information..."):
             # Developer Mode Accuracy Scoreboard 
             if dev_mode:
                 try:
-                    from evaluator import HealthcareEvaluator
-                    eval_tool = HealthcareEvaluator()
+                    # Use the pre-loaded evaluator from session state
+                    eval_tool = st.session_state.evaluator
                     
                     ground_truth = None
-                    if os.path.exists("eval/test_cases.json"):
-                        with open("eval/test_cases.json", "r") as f:
+                    # Standardizing path to test_cases
+                    test_path = "eval/test_cases.json"
+                    if os.path.exists(test_path):
+                        with open(test_path, "r") as f:
                             ground_truth = json.load(f).get(prompt)
 
                     st.divider()
@@ -129,13 +129,13 @@ if prompt := st.chat_input("Ask about healthcare information..."):
                     
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Grounding", f"{g_score:.1%}")
-                    c2.metric("Coherence", f"{uni['coherence']:.2f}")
+                    c2.metric("Coherence", f"{uni.get('coherence', 0):.2f}")
                     
                     if ground_truth:
                         b_score = eval_tool.get_bert_score(result["response"], ground_truth)
                         c3.metric("BERTScore", f"{b_score:.4f}")
                     else:
-                        c3.info("No ground truth found.")
+                        c3.info("No ground truth for this query.")
                 except Exception as e:
                     st.error(f"Scoreboard Error: {e}")
     
@@ -150,17 +150,13 @@ if prompt := st.chat_input("Ask about healthcare information..."):
                 seen.add(doc_key)
                 unique_docs.append(doc)
         
-        num_docs = min(len(unique_docs), max_references)
-        docs_to_show = unique_docs[:num_docs]
+        docs_to_show = unique_docs[:max_references]
         
-        if len(docs_to_show) > 0:
-            with st.expander(f"📖 View {num_docs} Reference(s)"):
+        if docs_to_show:
+            with st.expander(f"📖 View {len(docs_to_show)} Medical Reference(s)"):
                 for i, doc in enumerate(docs_to_show, 1):
-                    st.markdown(f"**--- Reference {i} ---**")
-                    st.markdown(f"**📌 Title:** {doc['title']}")
-                    if 'link' in doc:
-                        st.markdown(f"**🔗 Source:** [{doc['link']}]({doc['link']})")
-                    st.markdown(f"**📊 Score:** {doc['score']:.4f}")
-                    content = doc.get("content", "")[:300] + "..." if len(doc.get("content", "")) > 300 else doc.get("content", "")
-                    st.markdown(f"**📝 Content:** {content}")
+                    st.markdown(f"**Reference {i}**")
+                    if 'title' in doc: st.write(f"📌 **Source:** {doc['title']}")
+                    st.info(doc.get("content", "No content available."))
+                    if 'score' in doc: st.caption(f"Relevance Score: {doc['score']:.4f}")
                     st.divider()
