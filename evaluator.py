@@ -3,6 +3,12 @@ import torch
 import numpy as np
 from typing import List, Dict
 from bert_score import score as bert_score_func
+import nltk
+
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
 
 class HealthcareEvaluator:
     def __init__(self):
