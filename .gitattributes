@@ -1,2 +1,4 @@
 Dataset/01.[[:space:]]Structured/ai-medical-chatbot_cleaned.csv filter=lfs diff=lfs merge=lfs -text
 Dataset/01.[[:space:]]Structured/ai-medical-chatbot.csv filter=lfs diff=lfs merge=lfs -text
+Dataset/02_Unstructured/*.csv filter=lfs diff=lfs merge=lfs -text
+Dataset/02_Unstructured/*.jsonl filter=lfs diff=lfs merge=lfs -text
