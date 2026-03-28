@@ -49,6 +49,18 @@ class HealthcareEvaluator:
         except Exception:
             return 0.0
 
+    def score_context_relevance(self, response, context):
+        """Score how well response relates to context"""
+        # Use response as candidate, context as reference
+        # Higher score = more contextually relevant
+        P, R, F1 = self.bertscorer.score([response], [context])
+        return F1.item()
+
+    def score_batch(self, responses, references):
+        """Score multiple responses"""
+        P, R, F1 = self.bertscorer.score(responses, references)
+        return F1.tolist()
+
     def calculate_grounding_score(self, prediction: str, retrieved_docs: List[Dict]) -> float:
         """
         Measures how much of the response is grounded in the retrieved documents.
