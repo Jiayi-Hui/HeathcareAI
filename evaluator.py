@@ -69,6 +69,13 @@ class HealthcareEvaluator:
         if self.unieval_dialogue is None:
             return {"error": "UniEval model not loaded"}
 
+       # Input format needs to be as follow:
+           # # a list of dialogue histories
+           #  src_list = ['hi , do you know much about the internet ? \n i know a lot about different sites and some website design , how about you ? \n\n']
+           #  # a list of additional context that should be included into the generated response
+           #  context_list = ['the 3 horizontal line menu on apps and websites is called a hamburger button .\n']
+           #  # a list of model outputs to be evaluated
+           #  output_list = ['i do too . did you know the 3 horizontal line menu on apps and websites is called the hamburger button ?']
         # 1. Prepare inputs
         # src_list: The dialogue history/user prompt
         # context_list: The retrieved knowledge the model should use
