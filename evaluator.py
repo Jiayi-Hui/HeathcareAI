@@ -2,7 +2,7 @@
 import torch
 import numpy as np
 from typing import List, Dict
-from bert_score import score as bert_score_func
+from bert_score import BERTScorer
 import nltk
 from metric.evaluator import get_evaluator
 from utils import convert_to_json
@@ -23,13 +23,20 @@ class HealthcareEvaluator:
         except Exception as e:
             print(f"Warning: Could not initialize UniEval: {e}")
             self.unieval_dialogue = None
+
+        # Initialize BERTScorer
+        try:
+            self.bert_scorer = BERTScorer(lang="en", device=self.device)
+        except Exception as e:
+            print(f"Warning: Could not initialize BERTScorer: {e}")
+            self.bert_scorer = None
             
     def get_bert_score(self, prediction: str, ground_truth: str) -> float:
         """Calculates semantic similarity using BERTScore."""
         if not ground_truth:
             return 0.0
         try:
-            P, R, F1 = bert_score_func([prediction], [ground_truth], lang="en", device=self.device)
+            P, R, F1 = self.bert_scorer.score([prediction], [ground_truth])
             return F1.item()
         except Exception:
             return 0.0
