@@ -15,14 +15,12 @@ print(f"1. Start processing: {dataset_name_1}...")
 df1 = pd.read_csv(input_folder + dataset_name_1)
 print(f"Initial rows: {df1.shape[0]}")
 
-df1['Description'] = df1['Description'].str.replace(r'^Q\.\s*', '', regex=True)
 df1['Doctor'] = df1['Doctor'].str.replace(r'-->', '', regex=False)
 doc_lengths = df1['Doctor'].str.len().fillna(0)
 lower_quantile_val = doc_lengths.quantile(0.75)
-df1 = df1[doc_lengths >= lower_quantile_val]
+df1 = df1[doc_lengths >= lower_quantile_val][['Patient', 'Doctor']]
 
 df1 = df1.rename(columns={
-    'Description': 'Symptom Description',
     'Patient': 'Patient Question',
     'Doctor': 'Doctor Response'
 })
@@ -58,7 +56,7 @@ print("-" * 50)
 # =============================================================================
 dataset_name_3 = "Disease_symptom_and_patient_profile_dataset.csv"
 output_name_3 = dataset_name_3.replace(".csv", "_cleaned.csv")
-print(f"3. Start processing (REDO): {dataset_name_3}...")
+print(f"3. Start processing: {dataset_name_3}...")
 df3 = pd.read_csv(input_folder + dataset_name_3)
 print(f"Initial rows: {df3.shape[0]}")
 
@@ -120,11 +118,11 @@ print(f"Final row count: {len(df4)}")
 print("-" * 50)
 
 # =============================================================================
-# 5. drugs_side_effects_drugs_com.csv (RESTART)
+# 5. drugs_side_effects_drugs_com.csv
 # =============================================================================
 dataset_name_5 = "drugs_side_effects_drugs_com.csv"
 output_name_5 = dataset_name_5.replace(".csv", "_cleaned.csv")
-print(f"5. Start processing (RESTART): {dataset_name_5}...")
+print(f"5. Start processing: {dataset_name_5}...")
 df5 = pd.read_csv(input_folder + dataset_name_5)
 print(f"Initial rows: {df5.shape[0]}")
 
