@@ -13,9 +13,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score
 
 # Load dataset
-# input_folder = "./Dataset/01. Structured/"
+input_folder = "./Dataset/01. Structured/"
 # Local testing
-input_folder = "C:/Users/User/Desktop/University courses/STAT8017/Project/Datasets/"
+# input_folder = "C:/Users/User/Desktop/University courses/STAT8017/Project/Datasets/"
 dataset_name = "Disease_symptom_and_patient_profile_dataset.csv"
 dsapp = pd.read_csv(input_folder + dataset_name) # dsapp short for Disease_symptom_and_patient_profile
 # print(dsapp.head())
