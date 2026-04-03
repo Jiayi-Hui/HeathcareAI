@@ -4,9 +4,14 @@ import numpy as np
 from typing import List, Dict
 from bert_score import BERTScorer
 import nltk
-# git clone https://github.com/maszhongming/UniEval.git
-# cd UniEval
-# pip install -r requirements.txt
+import os
+import sys
+
+# ================== Add UniEval to path ==================
+uni_eval_path = os.path.abspath("./UniEval")
+if uni_eval_path not in sys.path:
+    sys.path.append(uni_eval_path)
+# ========================================================
 from metric.evaluator import get_evaluator
 from utils import convert_to_json
 
