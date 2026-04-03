@@ -81,7 +81,7 @@ class HealthcareEvaluator:
                 
         return supported / len(sentences)
 
-   def get_unieval_metrics(self, prediction: str, query: str, retrieved_docs: List[Dict]) -> Dict[str, float]:
+    def get_unieval_metrics(self, prediction: str, query: str, retrieved_docs: List[Dict]) -> Dict[str, float]:
         """
         Official UniEval implementation for the 'dialogue' task.
         Evaluates Naturalness, Coherence, Engagedness, and Groundedness.
