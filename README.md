@@ -20,6 +20,7 @@ This chatbot provides general health information from evidence-based sources for
 ```bash
 git clone https://github.com/yourusername/stat8017-healthcare-chatbot.git
 cd stat8017-healthcare-chatbot
+```
 
 ```bash 
 git clone https://github.com/maszhongming/UniEval.git
