@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python train_model.py)",
-      "Bash(python disease_predictor.py)"
-    ]
-  }
-}
