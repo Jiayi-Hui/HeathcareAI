@@ -4,6 +4,7 @@
 import os
 import subprocess
 import sys
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,13 +13,13 @@ def check_dependencies():
     """Check if all dependencies are installed"""
     required = ['streamlit', 'langchain', 'chromadb', 'zhipuai', 'pandas']
     missing = []
-    
+
     for package in required:
         try:
             __import__(package)
         except ImportError:
             missing.append(package)
-    
+
     # if missing:
     #     print("❌ Missing dependencies:", ", ".join(missing))
     #     print("📌 Run: pip install -r requirements.txt")
@@ -39,16 +40,16 @@ def main():
     print("=" * 60)
     print("🏥 STAT 8017 Healthcare Chatbot")
     print("=" * 60)
-    
+
     if not check_dependencies():
         sys.exit(1)
-    
+
     if not check_api_key():
         sys.exit(1)
-    
+
     print("\n🚀 Starting Streamlit...")
     port = os.environ.get("STREAMLIT_PORT", "8501")
-    
+
     subprocess.run([
         sys.executable, "-m", "streamlit", "run", "app.py",
         "--server.port", port,

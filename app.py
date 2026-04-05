@@ -7,12 +7,14 @@ Single Agent Architecture:
 - Decision threshold logic (0.04)
 """
 
-import streamlit as st
-from rag_agent import HealthcareRAGAgent
-from healthcare_agent import HealthcareAgent
-import disease_predictor
 import os
+
+import streamlit as st
 from dotenv import load_dotenv
+
+import disease_predictor
+from healthcare_agent import HealthcareAgent
+from rag_agent import HealthcareRAGAgent
 
 load_dotenv()
 

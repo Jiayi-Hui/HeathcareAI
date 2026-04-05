@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
 """STAT 8017 - Healthcare RAG Agent"""
 
-import os
-import pandas as pd
-from typing import List, Dict, Any
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
-from zhipuai import ZhipuAI
 import hashlib
-from tqdm import tqdm
-import chardet
-
+import os
 import warnings
+from typing import Any, Dict, List
+
+import chardet
+import pandas as pd
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from tqdm import tqdm
+from zhipuai import ZhipuAI
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message=".*torch.classes.*")
 
@@ -66,51 +67,51 @@ class HealthcareRAGAgent:
     def _detect_columns(self, df: pd.DataFrame) -> Dict[str, str]:
         columns = df.columns.tolist()
         col_mapping = {}
-        
+
         title_keywords = ['title', 'name', 'article', 'topic', 'subject', 'heading', 'page']
         content_keywords = ['content', 'text', 'body', 'article', 'description', 'summary', 'wiki', 'extract']
         link_keywords = ['link', 'url', 'source', 'href', 'website', 'web']
-        
+
         used_columns = set()
-        
+
         for col in columns:
             col_lower = str(col).lower()
             if any(k in col_lower for k in title_keywords) and col not in used_columns:
                 col_mapping['title'] = col
                 used_columns.add(col)
                 break
-        
+
         for col in columns:
             col_lower = str(col).lower()
             if any(k in col_lower for k in content_keywords) and col not in used_columns:
                 col_mapping['content'] = col
                 used_columns.add(col)
                 break
-        
+
         for col in columns:
             col_lower = str(col).lower()
             if any(k in col_lower for k in link_keywords) and col not in used_columns:
                 col_mapping['link'] = col
                 used_columns.add(col)
                 break
-        
+
         remaining_cols = [col for col in columns if col not in used_columns]
         col_mapping['other_columns'] = remaining_cols
         col_mapping['all_columns'] = columns
-        
+
         return col_mapping
 
     def process_csv(self, csv_path: str, encoding: str = None, skip_chunking: bool = True) -> Dict[str, Any]:
         if encoding is None:
             encoding = self._detect_encoding(csv_path)
             print(f"🔍 Auto-detected encoding: {encoding}")
-        
+
         encodings_to_try = [encoding, 'utf-8', 'big5', 'gbk', 'gb18030', 'latin-1']
         encodings_to_try = list(dict.fromkeys(encodings_to_try))
-        
+
         df = None
         successful_encoding = None
-        
+
         for enc in encodings_to_try:
             try:
                 df = pd.read_csv(csv_path, encoding=enc)
@@ -120,40 +121,40 @@ class HealthcareRAGAgent:
             except Exception as e:
                 print(f"⚠️ Failed with {enc}: {str(e)[:50]}")
                 continue
-        
+
         if df is None:
             raise Exception("Could not read CSV with any encoding!")
-        
+
         print(f"📊 Loaded CSV with {len(df):,} rows")
         col_mapping = self._detect_columns(df)
         print(f"📊 Column mapping: {col_mapping}")
-        
+
         documents = []
         for idx, row in tqdm(df.iterrows(), total=len(df), desc="Processing rows"):
             try:
                 title_col = col_mapping.get('title', list(df.columns)[0])
                 title = str(row.get(title_col, f'Doc_{idx}'))
-                
+
                 content_parts = []
                 if title and title != 'nan':
                     content_parts.append(f"Title: {title}")
-                
+
                 content_col = col_mapping.get('content', list(df.columns)[-1])
                 content = str(row.get(content_col, ''))
                 if content and content != 'nan':
                     content_parts.append(f"Content: {content}")
-                
+
                 link_col = col_mapping.get('link')
                 if link_col:
                     link = str(row.get(link_col, ''))
                     if link and link != 'nan':
                         content_parts.append(f"Source Link: {link}")
-                
+
                 for col in col_mapping.get('other_columns', []):
                     value = str(row.get(col, ''))
                     if value and value != 'nan':
                         content_parts.append(f"{col}: {value}")
-                
+
                 full_content = "\n".join(content_parts)
                 doc_id = hashlib.md5(f"{title}_{idx}".encode('utf-8', errors='ignore')).hexdigest()
 
@@ -179,11 +180,11 @@ class HealthcareRAGAgent:
                     for chunk in chunks:
                         if len(chunk.strip()) > 50:
                             documents.append(Document(page_content=chunk, metadata=metadata.copy()))
-                        
+
             except Exception as e:
                 print(f"⚠️ Skipped row {idx}: {str(e)[:50]}")
                 continue
-        
+
         print(f"\n📦 Adding {len(documents):,} documents to ChromaDB...")
         self.vectorstore.add_documents(documents)
 
@@ -214,7 +215,7 @@ class HealthcareRAGAgent:
     def generate_response(self, query: str, retrieved_docs: List[Dict]) -> str:
         if not retrieved_docs:
             return "❌ No relevant information found. Please try a different query."
-        
+
         context = ""
         for i, doc in enumerate(retrieved_docs, 1):
             context += f"Reference {i}:\n"
@@ -222,7 +223,7 @@ class HealthcareRAGAgent:
             if 'link' in doc:
                 context += f"  Link: {doc['link']}\n"
             context += f"  Content: {doc['content']}\n\n"
-        
+
         system_prompt = f"""You are a healthcare information assistant created by Group 3.1 for STAT 8017 project demonstration.
 
 IMPORTANT GUIDELINES:
@@ -237,7 +238,7 @@ IMPORTANT GUIDELINES:
 
 References:
 {context}"""
-        
+
         try:
             response = self.client.chat.completions.create(
                 model="glm-4.7-flash",
@@ -256,7 +257,7 @@ References:
         retrieved_docs = self.retrieve(query)
         response = self.generate_response(query, retrieved_docs)
         self.chat_history.append({"query": query, "response": response})
-        
+
         return {
             "query": query,
             "response": response,

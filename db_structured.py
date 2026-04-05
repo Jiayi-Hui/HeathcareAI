@@ -1,8 +1,9 @@
 import os
+
 import pandas as pd
 import psycopg2
-from psycopg2.extras import execute_values
 from dotenv import load_dotenv
+from psycopg2.extras import execute_values
 
 # --- 1. Setup & Environment ---
 load_dotenv()
@@ -11,15 +12,15 @@ input_folder = "./Dataset/01. Structured/"
 
 # Mapping filenames to templates based on your specific columns
 dataset_templates = {
-    "symptom_precaution_cleaned.csv": 
+    "symptom_precaution_cleaned.csv":
         "For the disease {Disease Name}, the following precautions are advised: {Precautions}",
-    "Disease_symptom_and_patient_profile_dataset_cleaned.csv": 
+    "Disease_symptom_and_patient_profile_dataset_cleaned.csv":
         "A patient diagnosed with {Disease Name} typically exhibits these symptoms: {Symptom Description}",
-    "Drug_prescription_to_disease_dataset_cleaned.csv": 
+    "Drug_prescription_to_disease_dataset_cleaned.csv":
         "Commonly prescribed drugs for {Disease Name} include: {Drug Name}",
-    "drugs_side_effects_drugs_com_cleaned.csv": 
+    "drugs_side_effects_drugs_com_cleaned.csv":
         "The medication {Drug Name} is prescribed for {Disease Name}. Side effects/Symptoms: {Symptom Description}",
-    "Symptom2Disease_cleaned.csv": 
+    "Symptom2Disease_cleaned.csv":
         "Medical records indicate that {Disease Name} is characterized by: {Symptom Description}"
 }
 
@@ -28,7 +29,7 @@ def upload_all_datasets():
     try:
         conn = psycopg2.connect(db_url)
         cur = conn.cursor()
-        
+
         # Create Table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS medical_knowledge (
@@ -38,29 +39,29 @@ def upload_all_datasets():
                 content TEXT
             );
         """)
-        
+
         print("Truncating table...")
         cur.execute("TRUNCATE TABLE medical_knowledge RESTART IDENTITY;")
         conn.commit()
 
-        chunk_size = 100 
+        chunk_size = 100
 
         for file_name, template in dataset_templates.items():
             path = os.path.join(input_folder, file_name)
             if not os.path.exists(path):
                 continue
-                
+
             print(f"Reading: {file_name}")
             df = pd.read_csv(path).fillna("")
-            
+
             processed_rows = []
             for _, row in df.iterrows():
                 # Convert row to dictionary for easier access
                 row_dict = row.to_dict()
-                
+
                 # Dynamic extraction of Disease Name (handling potential case sensitivity)
-                disease = row_dict.get('Disease Name') 
-                
+                disease = row_dict.get('Disease Name')
+
                 try:
                     # Format content using the template and the row's data
                     content = template.format(**row_dict)
@@ -69,7 +70,7 @@ def upload_all_datasets():
                     # This happens if a column required by the {} template is missing
                     print(f"  Warning: Missing column {e} in {file_name}")
                     continue
-            
+
             # Batch Insertion
             for i in range(0, len(processed_rows), chunk_size):
                 batch = processed_rows[i : i + chunk_size]
@@ -78,7 +79,7 @@ def upload_all_datasets():
                     VALUES %s
                 """, batch)
                 conn.commit()
-            
+
             print(f"  Inserted {len(processed_rows)} rows.")
 
     except Exception as e:
@@ -92,7 +93,7 @@ def verify_database_upload():
     print("\n" + "="*30)
     print("DATABASE VERIFICATION")
     print("="*30)
-    
+
     conn = None
     try:
         conn = psycopg2.connect(db_url)
@@ -106,7 +107,7 @@ def verify_database_upload():
             FROM medical_knowledge
             ORDER BY source_file, id;
         """
-        
+
         cur.execute(query)
         rows = cur.fetchall()
 
@@ -124,9 +125,9 @@ def verify_database_upload():
             disease_name = row[1]
             content = row[2].replace('\n', ' ')
             preview = (content[:75] + '...') if len(content) > 75 else content
-            
+
             print(f"{source_file:<55} | {disease_name:<25} | {preview}")
-            
+
         print("="*30)
         print(f"Total unique source files verified: {len(rows)}")
 

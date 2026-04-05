@@ -8,10 +8,12 @@ Single Agent pattern with:
 """
 
 import os
-from typing import Dict, List, Any, Tuple
-from zhipuai import ZhipuAI
-from dotenv import load_dotenv
 import warnings
+from typing import Any, Dict, List
+
+from dotenv import load_dotenv
+from zhipuai import ZhipuAI
+
 warnings.filterwarnings("ignore")
 
 load_dotenv()

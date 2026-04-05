@@ -1,9 +1,10 @@
 # Disease prediction module using trained Naive Bayes models
 # Import this module in main.py to use disease prediction functionality
 
+from typing import Dict, List, Tuple, Union
+
 import joblib
 import pandas as pd
-from typing import Union, List, Dict, Tuple
 
 # Load model on import
 _model_data = None

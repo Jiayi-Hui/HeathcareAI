@@ -35,3 +35,17 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Claude Code
+.claude/
+
+# Ruff
+.ruff_cache/
+
+# Evaluation (local only)
+evaluate_model.py
+evaluator.py
+run_evaluation.py
+test_cases.json
+evaluation_metrics.csv
+evaluation_results.csv

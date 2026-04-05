@@ -3,14 +3,12 @@
 
 # Imports
 import warnings
+
 warnings.filterwarnings("ignore")
-import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OrdinalEncoder
 from sklearn.naive_bayes import ComplementNB, MultinomialNB
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import OrdinalEncoder
 
 # Load dataset
 input_folder = "./Dataset/01. Structured/"

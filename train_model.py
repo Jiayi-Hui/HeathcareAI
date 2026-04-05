@@ -2,10 +2,10 @@
 # Simplified version - no Pipeline/OrdinalEncoder (features are already numeric)
 
 import warnings
+
 warnings.filterwarnings("ignore")
-import numpy as np
-import pandas as pd
 import joblib
+import pandas as pd
 from sklearn.naive_bayes import ComplementNB, MultinomialNB
 
 # Load dataset
