@@ -245,7 +245,7 @@ References:
         return {
             "query": query,
             "response": response,
-            "retrieved_docs": retrieved_docs,
+            "retrieved_docs": retrieved_docs, # CRITICAL: Scoreboard needs this
             "history_length": len(self.chat_history)
         }
 

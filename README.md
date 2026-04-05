@@ -20,3 +20,17 @@ This chatbot provides general health information from evidence-based sources for
 ```bash
 git clone https://github.com/yourusername/stat8017-healthcare-chatbot.git
 cd stat8017-healthcare-chatbot
+```
+
+### 2. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Setup UniEval (for evaluation)
+```bash
+git clone https://github.com/maszhongming/UniEval.git
+cd UniEval
+pip install -r requirements.txt
+cd ..
+```
