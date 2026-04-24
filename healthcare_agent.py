@@ -12,7 +12,7 @@ import warnings
 from typing import Any, Dict, List
 
 from dotenv import load_dotenv
-from zhipuai import ZhipuAI
+from openai import OpenAI
 
 warnings.filterwarnings("ignore")
 
@@ -32,14 +32,16 @@ class HealthcareAgent:
             rag_agent: HealthcareRAGAgent instance for RAG retrieval
             nb_predictor: disease_predictor module for NB predictions
         """
-        api_key = os.environ.get("ZHIPU_API_KEY")
+        api_key = os.environ.get("LLM_API_KEY")
+        base_url = os.environ.get("LLM_BASE_URL")
+        self.model = os.environ.get("LLM_MODEL", "qwen-plus")
         if not api_key:
-            raise ValueError("ZHIPU_API_KEY not found. Please set it in .env file")
+            raise ValueError("LLM_API_KEY not found. Please set it in .env file")
 
-        self.client = ZhipuAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.rag_agent = rag_agent
         self.nb_predictor = nb_predictor
-        print("✅ Healthcare Agent initialized!")
+        print(f"✅ Healthcare Agent initialized! (model: {self.model})")
 
     def detect_intent(self, user_input: str) -> str:
         """
@@ -64,7 +66,7 @@ class HealthcareAgent:
         question_patterns = [
             "what is", "what are", "how does", "how to", "why",
             "explain", "define", "tell me about", "information about",
-            "what's", "whats"
+            "what's", "whats", "who are", "who is", "what is a",
         ]
 
         has_symptoms = any(kw in text for kw in symptom_keywords)
@@ -118,7 +120,9 @@ class HealthcareAgent:
             "fatigue": -1,
             "difficulty_breathing": -1,
             "age": -1,
-            "gender": -1
+            "gender": -1,
+            "blood_pressure": -1,
+            "cholesterol": -1
         }
 
         # Fever detection
@@ -168,6 +172,22 @@ class HealthcareAgent:
         elif any(kw in text for kw in ["female", "woman", "girl", "she/her"]):
             symptoms["gender"] = 0
 
+        # Blood pressure detection
+        if any(kw in text for kw in ["high blood pressure", "hypertension", "high bp"]):
+            symptoms["blood_pressure"] = 2
+        elif any(kw in text for kw in ["low blood pressure", "low bp", "hypotension"]):
+            symptoms["blood_pressure"] = 0
+        elif any(kw in text for kw in ["normal blood pressure", "normal bp"]):
+            symptoms["blood_pressure"] = 1
+
+        # Cholesterol detection
+        if any(kw in text for kw in ["high cholesterol", "high chol"]):
+            symptoms["cholesterol"] = 2
+        elif any(kw in text for kw in ["low cholesterol", "low chol"]):
+            symptoms["cholesterol"] = 0
+        elif any(kw in text for kw in ["normal cholesterol", "normal chol"]):
+            symptoms["cholesterol"] = 1
+
         return symptoms
 
     def _extract_symptoms_llm(self, user_input: str) -> Dict:
@@ -180,20 +200,23 @@ Return ONLY a JSON object with these exact keys:
 - difficulty_breathing: 1 if mentioned as present, 0 if mentioned as absent, -1 if not mentioned
 - age: age divided by 10 (e.g., 25 -> 2, 45 -> 4), -1 if not mentioned
 - gender: 1 for male, 0 for female, -1 if not mentioned or unclear
+- blood_pressure: 2 for high, 1 for normal, 0 for low, -1 if not mentioned
+- cholesterol: 2 for high, 1 for normal, 0 for low, -1 if not mentioned
 
-Example input: "I have fever and cough, feeling very tired. I'm a 35 year old male."
-Example output: {"fever": 1, "cough": 1, "fatigue": 1, "difficulty_breathing": -1, "age": 3, "gender": 1}
+Example input: "I have fever and cough, feeling very tired. I'm a 35 year old male with high blood pressure."
+Example output: {"fever": 1, "cough": 1, "fatigue": 1, "difficulty_breathing": -1, "age": 3, "gender": 1, "blood_pressure": 2, "cholesterol": -1}
 
 Return ONLY the JSON object, no other text."""
 
         response = self.client.chat.completions.create(
-            model="glm-4.7-flash",
+            model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_input}
             ],
             temperature=0.1,
-            max_tokens=100
+            max_tokens=100,
+            timeout=30
         )
 
         import json
@@ -215,6 +238,10 @@ Return ONLY the JSON object, no other text."""
         if "age" not in symptoms or symptoms["age"] < -1 or symptoms["age"] > 9:
             symptoms["age"] = -1
 
+        for key in ["blood_pressure", "cholesterol"]:
+            if key not in symptoms or symptoms[key] not in [-1, 0, 1, 2]:
+                symptoms[key] = -1
+
         return symptoms
 
     def predict_top5(self, symptoms: Dict) -> Dict:
@@ -234,6 +261,8 @@ Return ONLY the JSON object, no other text."""
             difficulty_breathing=symptoms.get("difficulty_breathing", -1),
             age=symptoms.get("age", -1),
             gender=symptoms.get("gender", -1),
+            bp=symptoms.get("blood_pressure", 1),
+            chol=symptoms.get("cholesterol", 1),
             threshold=self.THRESHOLD
         )
 
@@ -316,14 +345,11 @@ Based on the symptom analysis, the following conditions may be associated with t
 
 IMPORTANT GUIDELINES FOR YOUR RESPONSE:
 1. Present the Top 5 possible conditions with their confidence levels clearly.
-2. Provide general health information about these conditions based ONLY on the provided references.
-3. Include preventive measures and general wellness tips when available in references.
-4. Mention when to seek professional medical care.
-5. DO NOT provide specific medical advice, diagnosis, or treatment suggestions.
-6. DO NOT recommend specific medications or dosages.
-7. ALWAYS emphasize: "This is not a diagnosis. Please consult a healthcare professional for accurate assessment."
-8. Present information objectively without making recommendations.
-9. Remember you are created by Group 3.1 for the STAT 8017 project.
+2. Picking top 1 possible disease to explain the common symptoms, Immediate Advice (eg drugs), Long-Term Advice (diet, excercise and so on) based ONLY on the provided references.
+3. Mention when to seek professional medical care.
+4. ALWAYS emphasize: "This is not a diagnosis. Please consult a healthcare professional for accurate assessment."
+5. Present information objectively without making recommendations.
+6. Remember you are created by Group 3.1 for the STAT 8017 project.
 
 References:
 {context}"""
@@ -350,62 +376,46 @@ References:
 
         try:
             response = self.client.chat.completions.create(
-                model="glm-4.7-flash",
+                model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"User input: {user_input}\n\nPlease provide a helpful response following the guidelines above."}
                 ],
                 temperature=0.7,
-                max_tokens=2048
+                max_tokens=2048,
+                timeout=60
             )
             return response.choices[0].message.content
         except Exception as e:
             return f"API error: {str(e)}"
 
-    def _format_general_response(self, user_input: str, evidence: List[Dict]) -> str:
+    def _format_general_response(self, user_input: str) -> str:
         """
-        Format response for general health questions (no NB predictions).
-
-        Args:
-            user_input: User's general question
-            evidence: Retrieved documents from RAG
-
-        Returns:
-            Formatted response string
+        Format response for general health questions (no NB predictions, no RAG).
         """
-        # Build context from evidence
-        context = ""
-        for i, doc in enumerate(evidence, 1):
-            context += f"Reference {i}:\n"
-            context += f"  Title: {doc['title']}\n"
-            if 'link' in doc:
-                context += f"  Link: {doc['link']}\n"
-            context += f"  Content: {doc['content']}\n\n"
+        print(f"📝 _format_general_response called for: {user_input[:50]}")
+        system_prompt = """You are a healthcare information assistant created by Group 3.1 for STAT 8017 project demonstration.
 
-        system_prompt = f"""You are a healthcare information assistant created by Group 3.1 for STAT 8017 project demonstration.
-
-Answer the user's question based on the provided references.
+Answer the user's question based on your medical knowledge.
 
 IMPORTANT GUIDELINES:
-1. Provide accurate information based ONLY on the references.
-2. Be helpful and informative.
-3. If the question is not related to health/medicine, politely redirect.
-4. DO NOT provide medical advice, diagnosis, or treatment suggestions.
-5. Include source attribution when citing information (e.g., "According to Reference 1...").
-6. Remember you are created by Group 3.1 for the STAT 8017 project.
-
-References:
-{context}"""
+1. Provide accurate and helpful information.
+2. If the question is not related to health/medicine, politely redirect.
+3. DO NOT provide medical advice, diagnosis, or treatment suggestions.
+4. DO NOT recommend specific medications or dosages.
+5. ALWAYS emphasize: "This is not a diagnosis. Please consult a healthcare professional for accurate assessment."
+6. Remember you are created by Group 3.1 for the STAT 8017 project."""
 
         try:
             response = self.client.chat.completions.create(
-                model="glm-4.7-flash",
+                model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_input}
                 ],
                 temperature=0.7,
-                max_tokens=2048
+                max_tokens=2048,
+                timeout=30
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -414,32 +424,16 @@ References:
     def process_query(self, user_input: str) -> Dict[str, Any]:
         """
         Main entry point: Process user query through intent-based routing.
-
-        Decision Logic Flow:
-        0. Detect intent (SYMPTOM_DESCRIPTION vs GENERAL_QUESTION)
-        - If GENERAL_QUESTION: Pure RAG flow, skip NB model
-        - If SYMPTOM_DESCRIPTION: NB + RAG flow
-        1. Parse symptoms from user input (for symptom descriptions)
-        2. Call NB Model Function -> Top 5 predictions
-        3. Check threshold (0.04)
-        4. Call RAG Retrieval Function -> appropriate evidence
-        5. Format response using SOP template
-        6. Save interaction to memory
-
-        Args:
-            user_input: User's symptom description or question
-
-        Returns:
-            Dict with response, predictions, evidence, symptoms, intent
         """
         # Step 0: Detect intent
         intent = self.detect_intent(user_input)
         print(f"🔍 Detected intent: {intent}")
 
         if intent == "GENERAL_QUESTION":
-            # Pure RAG flow - skip NB model
-            evidence = self.rag_agent.retrieve(user_input, top_k=5)
-            response = self._format_general_response(user_input, evidence)
+            # Pure LLM flow - no RAG, no NB
+            print("📝 Calling _format_general_response (1 API call)")
+            response = self._format_general_response(user_input)
+            print("✅ Response received")
 
             # Save interaction to memory (minimal info for general questions)
             self.rag_agent.save_interaction(
@@ -453,24 +447,38 @@ References:
                 "query": user_input,
                 "response": response,
                 "intent": "GENERAL_QUESTION",
-                "evidence": evidence,
+                "evidence": [],
                 "symptoms": None,
                 "predictions": None,
                 "is_clear_pattern": None
             }
 
         # SYMPTOM_DESCRIPTION - existing NB + RAG flow
-        # Step 1: Parse symptoms
+        import time
+
+        # Step 1: Parse symptoms (API call 1)
+        print("📋 Step 1: Parsing symptoms...")
         symptoms = self.parse_symptoms(user_input)
+        print(f"✅ Parsed symptoms: {symptoms}")
 
-        # Step 2: NB Model Function - Get Top 5 predictions
+        # Step 2: NB Model Function - Get Top 5 predictions (local, no API)
+        print("📊 Step 2: Running NB prediction...")
         prediction_result = self.predict_top5(symptoms)
+        print(f"✅ Prediction: {prediction_result['top5'][:1]}")
 
-        # Step 3 & 4: RAG Retrieval Function - Get appropriate evidence
+        # Step 3 & 4: RAG Retrieval Function - Get appropriate evidence (local search)
+        print("🔎 Step 3/4: Retrieving evidence...")
         evidence = self.retrieve_evidence(user_input, prediction_result)
+        print(f"✅ Retrieved {len(evidence)} documents")
 
-        # Step 5: Format response using SOP template
+        # Delay before next API call to avoid rate limit
+        print("⏳ Waiting 2s to avoid rate limit...")
+        time.sleep(2)
+
+        # Step 5: Format response using SOP template (API call 2)
+        print("📝 Step 5: Formatting response...")
         response = self.format_response(prediction_result, evidence, user_input)
+        print("✅ Response formatted")
 
         # Step 6: Save interaction to memory
         self.rag_agent.save_interaction(

@@ -13,18 +13,20 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from tqdm import tqdm
-from zhipuai import ZhipuAI
+from openai import OpenAI
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message=".*torch.classes.*")
 
 class HealthcareRAGAgent:
     def __init__(self, persist_directory: str = "./chroma_db"):
-        api_key = os.environ.get("ZHIPU_API_KEY")
+        api_key = os.environ.get("LLM_API_KEY")
+        base_url = os.environ.get("LLM_BASE_URL")
+        self.model = os.environ.get("LLM_MODEL", "qwen-plus")
         if not api_key:
-            raise ValueError("ZHIPU_API_KEY not found. Please set it in .env file")
+            raise ValueError("LLM_API_KEY not found. Please set it in .env file")
 
-        self.client = ZhipuAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
 
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,
@@ -241,7 +243,7 @@ References:
 
         try:
             response = self.client.chat.completions.create(
-                model="glm-4.7-flash",
+                model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Question: {query}"}

@@ -126,7 +126,9 @@ with tab1:
                                 "fatigue": "Fatigue",
                                 "difficulty_breathing": "Difficulty Breathing",
                                 "age": "Age Group",
-                                "gender": "Gender"
+                                "gender": "Gender",
+                                "blood_pressure": "Blood Pressure",
+                                "cholesterol": "Cholesterol"
                             }
                             for key, label in symptom_labels.items():
                                 val = symptoms.get(key, -1)
@@ -134,11 +136,15 @@ with tab1:
                                     display = {"1": "Yes/Present", "0": "No/Absent", "-1": "Unknown"}.get(str(val), "Unknown")
                                     if key == "gender":
                                         display = {"1": "Male", "0": "Female", "-1": "Unknown"}.get(str(val), "Unknown")
-                                else:  # age
+                                elif key == "age":
                                     if val == -1:
                                         display = "Unknown"
                                     else:
-                                        display = f"{val*10}-{val*10+9} years"
+                                        display = {1: "0-18", 2: "19-35", 3: "36-50", 4: "51-65", 5: "65+"}.get(val, f"{val*10}-{val*10+9} years")
+                                elif key == "blood_pressure":
+                                    display = {"2": "High", "1": "Normal", "0": "Low", "-1": "Unknown"}.get(str(val), "Unknown")
+                                elif key == "cholesterol":
+                                    display = {"2": "High", "1": "Normal", "0": "Low", "-1": "Unknown"}.get(str(val), "Unknown")
                                 st.write(f"**{label}:** {display}")
 
                     # Show predictions (always visible, expand state controlled by checkbox)
@@ -155,10 +161,9 @@ with tab1:
                                 st.progress(float(prob))
                                 st.write(f"   Probability: {prob:.2%}")
 
-                # Show references (for both intents, always visible)
-                if message.get("evidence"):
-                    intent_label = "General Question" if intent == "GENERAL_QUESTION" else "Symptom Analysis"
-                    with st.expander(f"📖 References ({len(message['evidence'])}) - {intent_label}", expanded=expand_references):
+                # Show references (SYMPTOM_DESCRIPTION only)
+                if intent != "GENERAL_QUESTION" and message.get("evidence"):
+                    with st.expander(f"📖 References ({len(message['evidence'])}) - Symptom Analysis", expanded=expand_references):
                         for i, doc in enumerate(message["evidence"], 1):
                             st.markdown(f"**--- Reference {i} ---**")
                             st.markdown(f"**📌 Title:** {doc['title']}")
@@ -177,7 +182,7 @@ with tab1:
 
         with st.chat_message("assistant"):
             intent = st.session_state.healthcare_agent.detect_intent(prompt)
-            spinner_msg = "🔍 Searching references..." if intent == "GENERAL_QUESTION" else "🔍 Analyzing symptoms with NB Model + RAG Retrieval..."
+            spinner_msg = "Thinking..." if intent == "GENERAL_QUESTION" else "🔍 Analyzing symptoms with NB Model + RAG Retrieval..."
             with st.spinner(spinner_msg):
                 result = st.session_state.healthcare_agent.process_query(prompt)
 
@@ -201,7 +206,9 @@ with tab1:
                             "fatigue": "Fatigue",
                             "difficulty_breathing": "Difficulty Breathing",
                             "age": "Age Group",
-                            "gender": "Gender"
+                            "gender": "Gender",
+                            "blood_pressure": "Blood Pressure",
+                            "cholesterol": "Cholesterol"
                         }
                         for key, label in symptom_labels.items():
                             val = symptoms.get(key, -1)
@@ -209,11 +216,15 @@ with tab1:
                                 display = {"1": "Yes/Present", "0": "No/Absent", "-1": "Unknown"}.get(str(val), "Unknown")
                                 if key == "gender":
                                     display = {"1": "Male", "0": "Female", "-1": "Unknown"}.get(str(val), "Unknown")
-                            else:  # age
+                            elif key == "age":
                                 if val == -1:
                                     display = "Unknown"
                                 else:
-                                    display = f"{val*10}-{val*10+9} years"
+                                    display = {1: "0-18", 2: "19-35", 3: "36-50", 4: "51-65", 5: "65+"}.get(val, f"{val*10}-{val*10+9} years")
+                            elif key == "blood_pressure":
+                                display = {"2": "High", "1": "Normal", "0": "Low", "-1": "Unknown"}.get(str(val), "Unknown")
+                            elif key == "cholesterol":
+                                display = {"2": "High", "1": "Normal", "0": "Low", "-1": "Unknown"}.get(str(val), "Unknown")
                             st.write(f"**{label}:** {display}")
 
                 # Show predictions expander
@@ -225,10 +236,9 @@ with tab1:
                             st.progress(float(prob))
                             st.write(f"   Probability: {prob:.2%}")
 
-            # Show references expander (for both intents)
-            if result.get("evidence"):
-                intent_label = "General Question" if intent == "GENERAL_QUESTION" else "Symptom Analysis"
-                with st.expander(f"📖 References ({len(result['evidence'])}) - {intent_label}", expanded=False):
+            # Show references expander (SYMPTOM_DESCRIPTION only)
+            if intent != "GENERAL_QUESTION" and result.get("evidence"):
+                with st.expander(f"📖 References ({len(result['evidence'])}) - Symptom Analysis", expanded=False):
                     for i, doc in enumerate(result["evidence"], 1):
                         st.markdown(f"**--- Reference {i} ---**")
                         st.markdown(f"**📌 Title:** {doc['title']}")
@@ -258,20 +268,27 @@ with tab1:
 with tab2:
     st.markdown("Enter symptoms using structured input for more precise predictions.")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         fever = st.selectbox("Fever", options=[-1, 0, 1], format_func=lambda x: {"-1": "Unknown", "0": "No", "1": "Yes"}[str(x)])
         cough = st.selectbox("Cough", options=[-1, 0, 1], format_func=lambda x: {"-1": "Unknown", "0": "No", "1": "Yes"}[str(x)])
+
+    with col2:
         fatigue = st.selectbox("Fatigue", options=[-1, 0, 1], format_func=lambda x: {"-1": "Unknown", "0": "No", "1": "Yes"}[str(x)])
         difficulty_breathing = st.selectbox("Difficulty Breathing", options=[-1, 0, 1], format_func=lambda x: {"-1": "Unknown", "0": "No", "1": "Yes"}[str(x)])
 
-    with col2:
-        age = st.selectbox("Age Group", options=[-1, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-                          format_func=lambda x: {"-1": "Unknown", "1": "10-19", "2": "20-29", "3": "30-39",
-                                                 "4": "40-49", "5": "50-59", "6": "60-69",
-                                                 "7": "70-79", "8": "80-89", "9": "90-99"}[str(x)])
+    with col3:
+        age = st.selectbox("Age Group", options=[-1, 1, 2, 3, 4, 5],
+                          format_func=lambda x: {"-1": "Unknown", "1": "0-18", "2": "19-35", "3": "36-50",
+                                                 "4": "51-65", "5": "65+"}[str(x)])
         gender = st.selectbox("Gender", options=[-1, 0, 1], format_func=lambda x: {"-1": "Unknown", "0": "Female", "1": "Male"}[str(x)])
+
+    with st.expander("Additional Health Indicators"):
+        bp = st.selectbox("Blood Pressure", options=[-1, 0, 1, 2],
+                         format_func=lambda x: {"-1": "Unknown", "0": "Low", "1": "Normal", "2": "High"}[str(x)])
+        chol = st.selectbox("Cholesterol", options=[-1, 0, 1, 2],
+                           format_func=lambda x: {"-1": "Unknown", "0": "Low", "1": "Normal", "2": "High"}[str(x)])
 
     if st.button("🔍 Analyze Symptoms", type="primary", use_container_width=True):
         # Create symptoms dict
@@ -281,15 +298,17 @@ with tab2:
             "fatigue": fatigue,
             "difficulty_breathing": difficulty_breathing,
             "age": age,
-            "gender": gender
+            "gender": gender,
+            "blood_pressure": bp,
+            "cholesterol": chol
         }
 
-        with st.spinner("🔍 Running NB Model prediction..."):
+        with st.spinner(" Running NB Model prediction..."):
             # Direct NB prediction (no parsing needed)
             prediction_result = st.session_state.healthcare_agent.predict_top5(symptoms)
 
             # Get appropriate evidence
-            query_desc = f"Patient with fever={fever}, cough={cough}, fatigue={fatigue}, difficulty_breathing={difficulty_breathing}, age group {age}, gender={gender}"
+            query_desc = f"Patient with fever={fever}, cough={cough}, fatigue={fatigue}, difficulty_breathing={difficulty_breathing}, age group {age}, gender={gender}, BP={'Low' if bp==0 else 'Normal' if bp==1 else 'High' if bp==2 else 'Unknown'}, Cholesterol={'Low' if chol==0 else 'Normal' if chol==1 else 'High' if chol==2 else 'Unknown'}"
             evidence = st.session_state.healthcare_agent.retrieve_evidence(query_desc, prediction_result)
 
             # Format response

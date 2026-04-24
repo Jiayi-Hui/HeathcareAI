@@ -1,20 +1,27 @@
-# Disease prediction module using trained Naive Bayes models
-# Import this module in main.py to use disease prediction functionality
+# Disease prediction module using trained Naive Bayes model
+# Uses GaussianNB model trained in dsapp_interaction.py with 13 features
 
-from typing import Dict, List, Tuple, Union
+import os
+from typing import Dict, List, Tuple
 
 import joblib
+import numpy as np
 import pandas as pd
 
-# Load model on import
+# Model path
+MODEL_PATH = os.path.join("Dataset", "01. Structured", "nb_disease_model.pkl")
+
+# Cached model data
 _model_data = None
+
 
 def _load_model(force_reload: bool = False):
     """Load model, optionally forcing a fresh reload."""
     global _model_data
     if _model_data is None or force_reload:
-        _model_data = joblib.load("disease_nb_model.pkl")
+        _model_data = joblib.load(MODEL_PATH)
     return _model_data
+
 
 def reload_model():
     """Force reload the model from disk (use after retraining)."""
@@ -22,15 +29,76 @@ def reload_model():
     _model_data = None
     return _load_model(force_reload=True)
 
+
+def _compute_interactions(features: dict) -> dict:
+    """Compute interaction features from the 4 binary symptoms.
+
+    Uses max(0, val) to treat -1 (unknown) as 0 for interaction calc.
+    """
+    f = max(0, features.get("Fever", 0))
+    c = max(0, features.get("Cough", 0))
+    fa = max(0, features.get("Fatigue", 0))
+    b = max(0, features.get("Difficulty Breathing", 0))
+    return {
+        "Fever_and_Fatigue": f * fa,
+        "Cough_and_Breathing": c * b,
+        "Fever_and_Cough": f * c,
+        "All_Four_Symptoms": f * c * fa * b,
+        "No_Symptoms": (1 - f) * (1 - c) * (1 - fa) * (1 - b),
+    }
+
+
+def _age_to_bin(age_val: int) -> int:
+    """Convert age//10 value to model's age bin.
+
+    Model bins: 1=0-18, 2=19-35, 3=36-50, 4=51-65, 5=65+
+    Input age_val: age // 10 (e.g., 2 for age 20-29, 3 for 30-39)
+    """
+    if age_val == -1:
+        return -1
+    age_approx = age_val * 10
+    if age_approx <= 18:
+        return 1
+    elif age_approx <= 35:
+        return 2
+    elif age_approx <= 50:
+        return 3
+    elif age_approx <= 65:
+        return 4
+    else:
+        return 5
+
+
+def _prepare_features(
+    fever: int, cough: int, fatigue: int, difficulty_breathing: int,
+    age: int, gender: int, bp: int = 1, chol: int = 1
+) -> pd.DataFrame:
+    """Build feature DataFrame with all 13 columns."""
+    age_bin = _age_to_bin(age)
+    base = {
+        "Fever": fever,
+        "Cough": cough,
+        "Fatigue": fatigue,
+        "Difficulty Breathing": difficulty_breathing,
+        "Blood Pressure Ord": bp,
+        "Cholesterol Ord": chol,
+        "Age Bin": age_bin,
+        "Gender": gender,
+    }
+    interactions = _compute_interactions(base)
+    base.update(interactions)
+    return pd.DataFrame([base])
+
+
 def get_model_info() -> Dict:
-    """Return model metadata including accuracy and supported diseases."""
+    """Return model metadata including supported diseases."""
     data = _load_model()
     return {
-        "training_accuracy": data["training_accuracy"],
-        "num_diseases": len(data["disease_name_to_value"]) - 1,  # exclude "none"
-        "feature_columns": data["feature_columns"],
-        "diseases": [v for k, v in data["disease_value_to_name"].items() if k != 0]
+        "num_diseases": len(data["class_names"]),
+        "feature_columns": data["feature_cols"],
+        "diseases": data["class_names"],
     }
+
 
 def predict_disease(
     fever: int,
@@ -39,10 +107,11 @@ def predict_disease(
     difficulty_breathing: int,
     age: int,
     gender: int,
-    model_type: str = "complement"
+    bp: int = 1,
+    chol: int = 1,
 ) -> Tuple[str, Dict[str, float]]:
     """
-    Predict disease from symptoms using trained Naive Bayes model.
+    Predict disease from symptoms using trained GaussianNB model.
 
     Args:
         fever: 0=No, 1=Yes, -1=Unknown
@@ -51,107 +120,82 @@ def predict_disease(
         difficulty_breathing: 0=No, 1=Yes, -1=Unknown
         age: Age divided by 10 (e.g., 25 -> 2, 45 -> 4), -1 for unknown
         gender: 0=Female, 1=Male, -1=Unknown
-        model_type: "multinomial" or "complement" (default: complement)
+        bp: 0=Low, 1=Normal, 2=High, -1=Unknown (default 1)
+        chol: 0=Low, 1=Normal, 2=High, -1=Unknown (default 1)
 
     Returns:
         Tuple of (predicted_disease_name, probability_dict)
     """
     data = _load_model()
+    model = data["model"]
+    le = data["label_encoder"]
+    class_names = data["class_names"]
 
-    # Select model
-    if model_type == "multinomial":
-        model = data["mulnb_model"]
-    else:
-        model = data["comnb_model"]
+    X_pred = _prepare_features(fever, cough, fatigue, difficulty_breathing, age, gender, bp, chol)
 
-    # Prepare input (shift values by +1 to handle -1 unknowns for MultinomialNB)
-    data = _load_model()
-    shift = data.get("value_shift", 1)
+    pred_idx = model.predict(X_pred.values)[0]
+    pred_name = class_names[pred_idx]
+    probs = model.predict_proba(X_pred.values)[0]
 
-    X_pred = pd.DataFrame([{
-        "Fever": fever + shift,
-        "Cough": cough + shift,
-        "Fatigue": fatigue + shift,
-        "Difficulty Breathing": difficulty_breathing + shift,
-        "Age": age + shift,
-        "Gender": gender + shift
-    }])
+    prob_dict = {class_names[i]: float(prob) for i, prob in enumerate(probs)}
+    return pred_name, prob_dict
 
-    # Predict
-    prediction = model.predict(X_pred)[0]
-    probabilities = model.predict_proba(X_pred)[0]
-
-    # Map to disease names
-    disease_name = data["disease_value_to_name"][prediction]
-
-    # Create probability dict
-    prob_dict = {
-        data["disease_value_to_name"][i]: float(prob)
-        for i, prob in enumerate(probabilities)
-    }
-
-    return disease_name, prob_dict
 
 def predict_disease_batch(
-    symptoms: Union[List[Dict], pd.DataFrame],
-    model_type: str = "complement"
+    symptoms: List[Dict],
 ) -> List[Tuple[str, Dict[str, float]]]:
     """
     Predict diseases for multiple symptom sets.
 
     Args:
         symptoms: List of dicts with keys: fever, cough, fatigue,
-                  difficulty_breathing, age, gender
-                  OR DataFrame with columns: Fever, Cough, Fatigue,
-                  Difficulty Breathing, Age, Gender
-        model_type: "multinomial" or "complement" (default: complement)
+                  difficulty_breathing, age, gender, bp (optional), chol (optional)
 
     Returns:
         List of (predicted_disease_name, probability_dict) tuples
     """
     data = _load_model()
+    model = data["model"]
+    class_names = data["class_names"]
 
-    # Select model
-    if model_type == "multinomial":
-        model = data["mulnb_model"]
-    else:
-        model = data["comnb_model"]
-
-    # Prepare input DataFrame
-    data = _load_model()
-    shift = data.get("value_shift", 1)
-
-    if isinstance(symptoms, list):
-        X_pred = pd.DataFrame(symptoms)
-        # Rename columns to match training data
-        X_pred = X_pred.rename(columns={
-            "fever": "Fever",
-            "cough": "Cough",
-            "fatigue": "Fatigue",
-            "difficulty_breathing": "Difficulty Breathing",
-            "age": "Age",
-            "gender": "Gender"
+    rows = []
+    for s in symptoms:
+        rows.append({
+            "Fever": s.get("fever", -1),
+            "Cough": s.get("cough", -1),
+            "Fatigue": s.get("fatigue", -1),
+            "Difficulty Breathing": s.get("difficulty_breathing", -1),
+            "Blood Pressure Ord": s.get("bp", 1),
+            "Cholesterol Ord": s.get("chol", 1),
+            "Age Bin": _age_to_bin(s.get("age", -1)),
+            "Gender": s.get("gender", -1),
         })
-    else:
-        X_pred = symptoms
 
-    # Apply shift to handle -1 unknowns
-    X_pred = X_pred + shift
+    df = pd.DataFrame(rows)
+    interactions = df.apply(
+        lambda row: _compute_interactions({
+            "Fever": row["Fever"],
+            "Cough": row["Cough"],
+            "Fatigue": row["Fatigue"],
+            "Difficulty Breathing": row["Difficulty Breathing"],
+        }),
+        axis=1,
+        result_type="expand",
+    )
+    interactions.columns = ["Fever_and_Fatigue", "Cough_and_Breathing", "Fever_and_Cough", "All_Four_Symptoms", "No_Symptoms"]
+    df = pd.concat([df, interactions], axis=1)
 
-    # Predict
-    predictions = model.predict(X_pred)
-    probabilities = model.predict_proba(X_pred)
+    predictions = model.predict(df.values)
+    probabilities = model.predict_proba(df.values)
 
     results = []
-    for i, (pred, probs) in enumerate(zip(predictions, probabilities)):
-        disease_name = data["disease_value_to_name"][pred]
-        prob_dict = {
-            data["disease_value_to_name"][j]: float(prob)
-            for j, prob in enumerate(probs)
-        }
+    for pred, probs in zip(predictions, probabilities):
+        disease_name = class_names[pred]
+        prob_dict = {class_names[i]: float(prob) for i, prob in enumerate(probs)}
         results.append((disease_name, prob_dict))
 
     return results
+
 
 def get_top_diseases(
     fever: int,
@@ -161,23 +205,16 @@ def get_top_diseases(
     age: int,
     gender: int,
     top_n: int = 5,
-    model_type: str = "complement"
+    bp: int = 1,
+    chol: int = 1,
 ) -> List[Tuple[str, float]]:
     """
     Get top N most likely diseases with their probabilities.
-
-    Args:
-        Same as predict_disease
-        top_n: Number of top predictions to return (default: 5)
-
-    Returns:
-        List of (disease_name, probability) tuples sorted by probability
     """
-    disease_name, prob_dict = predict_disease(
-        fever, cough, fatigue, difficulty_breathing, age, gender, model_type
+    _, prob_dict = predict_disease(
+        fever, cough, fatigue, difficulty_breathing, age, gender, bp, chol
     )
 
-    # Sort by probability (descending) and take top N
     sorted_probs = sorted(prob_dict.items(), key=lambda x: x[1], reverse=True)
     return sorted_probs[:top_n]
 
@@ -190,14 +227,11 @@ def get_top5_with_threshold(
     age: int,
     gender: int,
     threshold: float = 0.04,
-    model_type: str = "complement"
+    bp: int = 1,
+    chol: int = 1,
 ) -> Dict:
     """
     Get Top 5 predictions with threshold check for decision logic.
-
-    Args:
-        Same as predict_disease
-        threshold: Probability threshold for clear pattern vs uncertain (default: 0.04)
 
     Returns:
         Dict with:
@@ -208,7 +242,7 @@ def get_top5_with_threshold(
     """
     top5 = get_top_diseases(
         fever, cough, fatigue, difficulty_breathing, age, gender,
-        top_n=5, model_type=model_type
+        top_n=5, bp=bp, chol=chol
     )
 
     max_prob = top5[0][1] if top5 else 0.0
@@ -225,27 +259,27 @@ def get_top5_with_threshold(
             "fatigue": fatigue,
             "difficulty_breathing": difficulty_breathing,
             "age": age,
-            "gender": gender
+            "gender": gender,
+            "bp": bp,
+            "chol": chol,
         }
     }
 
 
 # Example usage
 if __name__ == "__main__":
-    # Print model info
     info = get_model_info()
     print(f"Model trained on {info['num_diseases']} diseases")
-    print(f"Training accuracy: {info['training_accuracy']}")
+    print(f"Features: {info['feature_columns']}")
     print()
 
-    # Example prediction: patient with fever, cough, fatigue, age 30, male
     disease, probs = predict_disease(
         fever=1, cough=1, fatigue=1, difficulty_breathing=0, age=3, gender=1
     )
     print(f"Predicted disease: {disease}")
+    print(f"Top probabilities: {sorted(probs.items(), key=lambda x: x[1], reverse=True)[:5]}")
     print()
 
-    # Get top 5 predictions with threshold check
     result = get_top5_with_threshold(
         fever=1, cough=1, fatigue=1, difficulty_breathing=0, age=3, gender=1
     )

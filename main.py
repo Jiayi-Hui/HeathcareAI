@@ -11,7 +11,7 @@ load_dotenv()
 
 def check_dependencies():
     """Check if all dependencies are installed"""
-    required = ['streamlit', 'langchain', 'chromadb', 'zhipuai', 'pandas']
+    required = ['streamlit', 'langchain', 'chromadb', 'openai', 'pandas']
     missing = []
 
     for package in required:
@@ -28,12 +28,14 @@ def check_dependencies():
 
 def check_api_key():
     """Check if API key is set"""
-    api_key = os.environ.get("ZHIPU_API_KEY")
+    api_key = os.environ.get("LLM_API_KEY")
+    base_url = os.environ.get("LLM_BASE_URL")
+    model = os.environ.get("LLM_MODEL", "qwen-plus")
     if not api_key:
-        print("❌ ZHIPU_API_KEY not found!")
+        print("❌ LLM_API_KEY not found!")
         print("📌 Copy .env.example to .env and add your API key")
         return False
-    print(f"✅ API Key configured: {api_key[:10]}...{api_key[-5:]}")
+    print(f"✅ LLM configured: {api_key[:10]}...{api_key[-5:]} | URL: {base_url} | Model: {model}")
     return True
 
 def main():
