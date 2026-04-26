@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# ChromaDB
+chroma_db/
+*.sqlite3
+
+# Data
+# data/*.csv
+# *.csv
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Claude Code
+.claude/
+
+# Ruff
+.ruff_cache/
+ruff.toml
+
+# Evaluation (local only)
+evaluate_model.py
+evaluator.py
+run_evaluation.py
+test_cases.json
+evaluation_metrics.csv
+evaluation_results.csv
